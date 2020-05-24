@@ -1,0 +1,155 @@
+#reading all the names and their CIK numbers
+#writing all ciks into txt files
+#search by "https://www.sec.gov/edgar/searchedgar/cik.htm"
+import os 
+import re
+import pandas as pd
+file=pd.read_csv('NAstates.csv')
+state=file.State
+#cikfile=open("allcik.txt",'w+')
+#write all the company CIK numbers
+#print(state)
+#get all states name and search by state
+#then perform "search" function 
+from bs4 import BeautifulSoup as bs
+import requests
+cik_list=[]
+company_list=[]
+url_list=[]
+for eachstate in state:
+    count=0
+    print(eachstate)
+    while count < 10000:
+        url='https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&State='+eachstate+'&owner=include&match=&start='+str(count)+'&count=40&hidefilings=0'
+        print(url)
+        text=requests.get(url).text
+        #print(text)
+        errinfo=bs(text,'lxml')
+        #print(errinfo)
+        errorr=errinfo.find("div",{"id":"contentDiv"})
+        #finding the cik/company and no matching if possible
+        #print(len(errorr.get_text()))
+        #print(errorr.get_text())
+        if isinstance(errorr.get_text(),str):
+            if 'No matching companies.' in errorr.get_text():
+                # if finding no matching site jump out the loop and 
+                # move to the next state
+                break
+        url_list.append(url)
+        count=count+40
+        #print(url_list)
+        #print(count)
+#print(url_list)
+    
+    
+#print(url_list)
+for urlist in url_list:
+    #getting all the urls after searching by states
+    #searching for all the cik number on this website
+    #matching then finding out the final url for txt file
+    #then download all the txt files
+    text = requests.get(urlist).text
+    medium=bs(text,'lxml')
+    #print('1')
+    #print(medium)
+    #<tr></tr>
+    for tr in medium.find_all('tr'):
+        for a in tr.find_all('a'):
+            #print(a)
+            #print('2')
+            if 'CIK=' in a['href']:
+                cik_list.append(a.get_text())
+                print(cik_list)
+#print(len(cik_list))
+#print(cik_list)
+    
+    
+
+#finding series codes
+#eliminate the first zeroes for future usage
+print(len(cik_list))
+series_code=[]
+#series code for future search usage
+for cik in cik_list:
+    if cik[3]!='0':
+        series_code.append(cik[3:])
+    if cik[3]=='0':
+        if cik[4]!='0':
+            series_code.append(cik[4:])
+        if cik[4]=='0':
+            series_code.append(cik[5:])
+print(series_code)
+#print(len(series_code))
+print("Found the codes")
+
+
+#finding all the url which could be valid within all ciks
+#for cik in cik_list:
+from dateutil.parser import parse
+url_num=[]
+for cik in cik_list:
+    print(cik)
+#cik='0000926282'
+    url='https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK='+str(cik)+'&type=10-k&dateb=&owner=exclude&count=40'
+    #print(url)
+    medium=requests.get(url)
+    if(medium.status_code==200):
+        text=medium.text
+        forms=bs(text,'lxml')
+        #print(forms)
+        #print(type(forms))
+        for tr in forms.find_all('tr'):
+            for td in tr.find_all('td'):
+                #print(td)
+                for a in td.find_all('a'):
+                    #print(type(a))
+                    teststr=str(a)
+                    if teststr.find('a href="/Archives/edgar/data/')==1:
+                        urlstr=teststr
+                        urlstr2=str(urlstr[30:])
+                        urlstr3=str(urlstr2[:-47])
+                        url_soup=bs(urlstr3)
+                        #print(url_soup)
+                        url_num.append(url_soup.get_text())
+                        print(url_num[-1])
+                        
+
+#getting all the valid part of url for getting the txt file
+#print(url_num)
+valid_urlist=[]
+for valid_url in url_num:
+    if valid_url.count('/')>1:
+        valid_urlist.append(valid_url)
+print(valid_urlist)
+print(len(valid_urlist))
+
+#complete all the urls for txt file -- final url
+#print(valid_urlist)
+final_url=[]
+for urls in valid_urlist:
+    medium='https://www.sec.gov/Archives/edgar/data/'+urls+'.txt'
+    final_url.append(medium)
+print(final_url)
+
+
+#after finding the txturls
+#we are ready for downloading them
+import urllib.request
+trial=final_url
+print(trial)
+def download(trial):
+    count=0
+    for eachurl in trial:
+        response = urllib.request.urlopen(eachurl)
+        count=count+1
+        data = response.read()
+        txt_str = str(data)
+        lines = txt_str.split("\\n")
+        file = open(str(count)+'.txt',"w+")
+        for line in lines:
+            file.write(line+ "\n")
+        file.close()
+
+download(trial)
+
+        
